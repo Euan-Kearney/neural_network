@@ -12,18 +12,21 @@ class DataInput:
         self.data = data
         self.info = data.history(period="3y")
         
+        #basic data attributes
         self.open = self.info['Open']
         self.close = self.info['Close']
         self.high = self.info['High']
         self.low = self.info['Low']
         self.volume = self.info['Volume']
         
+        #derived features
         self.daily_returns = self.info['Close'].pct_change()
         self.price_change = self.info['Close'] - self.info['Open']
         self.high_low_diff = self.info['High'] - self.info['Low']
         self.close_open_ration = self.info['Close'] / self.info['Open']
         self.volume_change = self.info['Volume'].pct_change()
         
+        #technical indicators
         self.sma_5 = self.info['Close'].rolling(window=5).mean()
         self.sma_10 = self.info['Close'].rolling(window=10).mean()
         self.ema_10 = self.info['Close'].ewm(span=10).mean()
@@ -48,7 +51,7 @@ class DataInput:
             'SMA 10': self.sma_10,
             'EMA 10': self.ema_10,
             'Rolling Std 10': self.rolling_std_10
-        }).dropna()
+        }).dropna().reset_index(drop=True)
         
         
         
