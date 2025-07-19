@@ -48,7 +48,7 @@ class DataInput:
             'SMA 10': self.sma_10,
             'EMA 10': self.ema_10,
             'Rolling Std 10': self.rolling_std_10
-        })
+        }).dropna()
         
         
         

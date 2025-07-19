@@ -1,7 +1,7 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
-
+from info import DataInput
 import sys
 
 def get_data() -> yf.Ticker:
@@ -30,6 +30,11 @@ def get_data() -> yf.Ticker:
 def main():
     
     data = get_data()
+    input_data = DataInput(data)
+    processed_data = input_data.get_data()
+    
+     
+    print(processed_data.tail(30))  
     
     
 
