@@ -45,14 +45,31 @@ def get_prediction_period() -> int:
             continue
         
     
+    
+        
+def train_model(data_input: DataInput): 
+    
+    
+    data = data_input.get_data() 
+    
+    features = data.columns.tolist()
+    
+    X = []
+    Y = []
+    
+    # Create input and output arrays for the neural network)
+    for i in range(len(data) - data_input.lookback_period):
+        X.append(data[features].iloc[i:i + data_input.lookback_period].values)
+        Y.append(data.iloc[i + data_input.lookback_period]['Close'])
+    X = np.array(X)
+    Y = np.array(Y)
 
 def main():
     
     data = get_data()
     prediction_period = get_prediction_period()
     input_data = DataInput(data, prediction_period)
-    processed_data = input_data.get_data()
-    print(processed_data)
+    train_model(input_data)
     
 
 if __name__ == "__main__":

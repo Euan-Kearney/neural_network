@@ -89,7 +89,7 @@ def calculate_rsi(data: pd.Series, period: int = 14) -> pd.Series:
     avg_gain = gain.rolling(window=period, min_periods=1).mean()
     avg_loss = loss.rolling(window=period, min_periods=1).mean()
     
-    rs = avg_gain / avg_loss
+    rs = avg_gain / (avg_loss +  1e-10)  # Adding a small value to avoid division by zero
     rsi = 100 - (100 / (1 + rs))
      
     return rsi
