@@ -50,12 +50,9 @@ def main():
     
     data = get_data()
     prediction_period = get_prediction_period()
-    input_data = DataInput(data)
+    input_data = DataInput(data, prediction_period)
     processed_data = input_data.get_data()
-    
-     
-    print(processed_data.tail(30))  
-    
+    print(processed_data)
     
 
 if __name__ == "__main__":
