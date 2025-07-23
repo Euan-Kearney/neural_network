@@ -2,7 +2,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from info import DataInput
-import sys
+from sklearn.preprocessing import MinMaxScaler
 
 def get_data() -> yf.Ticker:
     """
@@ -44,31 +44,53 @@ def get_prediction_period() -> int:
             print("Invalid input. Please enter a number between 1 and 30.")
             continue
         
-    
-    
-        
-def train_model(data_input: DataInput): 
-    
+def prepare_data(data_input: DataInput) -> tuple[np.ndarray, np.ndarray]: 
+    """
+    Prepares the data for training the neural network.
+    Args:
+        data_input (DataInput): An instance of DataInput containing the data and lookback period.
+    Returns:
+        tuple: A tuple containing the input features (X) and output labels (Y) as numpy arrays.
+    """
     
     data = data_input.get_data() 
     
     features = data.columns.tolist()
     
-    X = []
-    Y = []
+    scaler_X = MinMaxScaler(feature_range=(0, 1))
+    scaled_data = data.copy()
+    scaled_data[features] = scaler_X.fit_transform(data[features])
     
-    # Create input and output arrays for the neural network)
-    for i in range(len(data) - data_input.lookback_period):
-        X.append(data[features].iloc[i:i + data_input.lookback_period].values)
-        Y.append(data.iloc[i + data_input.lookback_period]['Close'])
-    X = np.array(X)
-    Y = np.array(Y)
+    X, Y = [], []
+    print(scaled_data.head(30))
+   
+    
+    # Create input and output arrays for the neural network
+    for i in range(len(scaled_data) - data_input.lookback_period):
+        X.append(scaled_data[features].iloc[i:i + data_input.lookback_period].values)
+        Y.append(scaled_data.iloc[i + data_input.lookback_period]['Close'])
+    X, Y = np.array(X), np.array(Y)
+    return X, Y
+    
+    
+    
+    
+    
+
+        
+def train_model(data_input: DataInput): 
+    
+    
+    X, Y = prepare_data(data_input)
+    
 
 def main():
     
     data = get_data()
     prediction_period = get_prediction_period()
     input_data = DataInput(data, prediction_period)
+    
+    print(input_data.get_data().head(30))
     train_model(input_data)
     
 
