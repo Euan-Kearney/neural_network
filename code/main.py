@@ -62,14 +62,17 @@ def prepare_data(data_input: DataInput) -> tuple[np.ndarray, np.ndarray]:
     scaled_data[features] = scaler_X.fit_transform(data[features])
     
     X, Y = [], []
-    print(scaled_data.head(30))
+    
    
     
     # Create input and output arrays for the neural network
     for i in range(len(scaled_data) - data_input.lookback_period):
         X.append(scaled_data[features].iloc[i:i + data_input.lookback_period].values)
-        Y.append(scaled_data.iloc[i + data_input.lookback_period]['Close'])
+        Y.append(scaled_data['Close'] \
+                 .iloc[i + data_input.lookback_period : i + data_input.lookback_period + data_input.prediction_period].values)
     X, Y = np.array(X), np.array(Y)
+    print(X)
+    print(Y)
     return X, Y
     
     
@@ -90,7 +93,6 @@ def main():
     prediction_period = get_prediction_period()
     input_data = DataInput(data, prediction_period)
     
-    print(input_data.get_data().head(30))
     train_model(input_data)
     
 
