@@ -19,7 +19,7 @@ class DataInput:
         self.data = data
         self.prediction_period = prediction_period
         self.lookback_period = get_lookback_period(prediction_period)
-        self.info = data.history(period= f'{self.lookback_period + 60}d')
+        self.info = data.history(period='5y')
         
         #basic data attributes
         self.open = self.info['Open']

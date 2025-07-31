@@ -60,7 +60,7 @@ def prepare_data(data_input: DataInput) -> tuple[np.ndarray, np.ndarray]:
     scaler_X = MinMaxScaler(feature_range=(0, 1))
     scaled_data = data.copy()
     scaled_data[features] = scaler_X.fit_transform(data[features])
-    print(scaled_data.tail(30))
+   
     
     X, Y = [], []
     
@@ -68,13 +68,13 @@ def prepare_data(data_input: DataInput) -> tuple[np.ndarray, np.ndarray]:
     
     # Create input and output arrays for the neural network
     #print(len(scaled_data) - data_input.lookback_period)
+    print(len(data))
     for i in range(len(scaled_data) - data_input.lookback_period - data_input.prediction_period + 1):
         X.append(scaled_data[features].iloc[i:i + data_input.lookback_period].values)
         Y.append(scaled_data['Close'] \
                  .iloc[i + data_input.lookback_period : i + data_input.lookback_period + data_input.prediction_period].values)
     X, Y = np.array(X), np.array(Y)
-    print(X)
-    print(Y)
+  
     return X, Y
     
     
