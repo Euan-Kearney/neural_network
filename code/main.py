@@ -64,8 +64,7 @@ def prepare_data(data_input: DataInput) -> tuple[np.ndarray, np.ndarray]:
     
     X, Y = [], []
     
-   
-    
+
     # Create input and output arrays for the neural network
     #print(len(scaled_data) - data_input.lookback_period)
     print(len(data))
@@ -99,5 +98,4 @@ def main():
     
 
 if __name__ == "__main__":
-    #test
     main()
