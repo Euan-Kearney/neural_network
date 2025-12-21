@@ -1,8 +1,40 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import torch
+from torch import nn
 from info import DataInput
 from sklearn.preprocessing import MinMaxScaler
+
+
+class StockPredictionModel(nn.Module):
+    def __init__(self, prediction_period):
+        super().__init__()
+        self.hidden_size = 32
+        self.num_layers = 2
+        self.lstm = nn.LSTM(input_size=15,
+                            hidden_size=self.hidden_size,
+                            num_layers=self.num_layers,
+                            batch_first=True,     
+                            dropout=0.25                  
+                            )
+
+        self.fc = nn.Linear(self.hidden_size, prediction_period)
+    def forward(self, x):
+        
+        #initialise long and short term memory to 0
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+        
+        #forward pass
+        out, (hn, cn) = self.lstm(x, (h0, c0))
+        
+        #takes final index of the timestep
+        out = out[:, -1, :]
+        
+        out = self.fc(out)
+        
+        return out
 
 def get_data() -> yf.Ticker:
     """
@@ -66,14 +98,14 @@ def prepare_data(data_input: DataInput) -> tuple[np.ndarray, np.ndarray]:
     
 
     # Create input and output arrays for the neural network
-    #print(len(scaled_data) - data_input.lookback_period)
-    print(len(data))
     for i in range(len(scaled_data) - data_input.lookback_period - data_input.prediction_period + 1):
         X.append(scaled_data[features].iloc[i:i + data_input.lookback_period].values)
         Y.append(scaled_data['Close'] \
                  .iloc[i + data_input.lookback_period : i + data_input.lookback_period + data_input.prediction_period].values)
     X, Y = np.array(X), np.array(Y)
   
+    print(f"X shape: {X.shape}")
+    print(f"Y shape: {Y.shape}")
     return X, Y
     
     
@@ -82,10 +114,14 @@ def prepare_data(data_input: DataInput) -> tuple[np.ndarray, np.ndarray]:
     
 
         
-def train_model(data_input: DataInput): 
+def train_model(data_input: DataInput):  
     
     
-    X, Y = prepare_data(data_input)
+    X_numpy, y_numpy = prepare_data(data_input)
+    X = torch.from_numpy(X_numpy)
+    y = torch.from_numpy(y_numpy)
+    print(f"X shape: {X.shape} Y shape: {y.shape}")
+    
     
 
 def main():
