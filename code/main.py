@@ -15,26 +15,30 @@ class StockPredictionModel(nn.Module):
         self.lstm = nn.LSTM(input_size=15,
                             hidden_size=self.hidden_size,
                             num_layers=self.num_layers,
-                            batch_first=True,     
-                            dropout=0.25                  
+                            batch_first=True,
+                            dropout=0.25
                             )
 
         self.fc = nn.Linear(self.hidden_size, prediction_period)
+
     def forward(self, x):
-        
-        #initialise long and short term memory to 0
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-        
-        #forward pass
+
+        # initialise long and short term memory to 0
+        h0 = torch.zeros(self.num_layers, x.size(
+            0), self.hidden_size).to(x.device)
+        c0 = torch.zeros(self.num_layers, x.size(
+            0), self.hidden_size).to(x.device)
+
+        # forward pass
         out, (hn, cn) = self.lstm(x, (h0, c0))
-        
-        #takes final index of the timestep
+
+        # takes final index of the timestep
         out = out[:, -1, :]
-        
+
         out = self.fc(out)
-        
+
         return out
+
 
 def get_data() -> yf.Ticker:
     """
@@ -42,14 +46,15 @@ def get_data() -> yf.Ticker:
     Returns a yf.Ticker object containing the data for the specified ticker symbol.
     """
 
-    #prompt the user for a Wall Street ticker symbol
+    # prompt the user for a Wall Street ticker symbol
     print("Enter a Wall Street ticker symbol: ")
     ticker_symbol = input().strip().upper()
     data = yf.Ticker(ticker_symbol)
-    
+
     # Check if the ticker symbol is valid
     while data.info.get('regularMarketPrice') is None:
-        print(f"Ticker symbol '{ticker_symbol}' is not available. Please enter a valid Wall Street ticker symbol: ")
+        print(
+            f"Ticker symbol '{ticker_symbol}' is not available. Please enter a valid Wall Street ticker symbol: ")
         ticker_symbol = input().strip().upper()
         data = yf.Ticker(ticker_symbol)
 
@@ -57,14 +62,15 @@ def get_data() -> yf.Ticker:
     print(f"Data for {ticker_symbol} retrieved successfully.")
     return data
 
+
 def get_prediction_period() -> int:
     """
     Prompts the user for a prediction period in days.
     Returns the prediction period as an integer.
     """
     print("Enter the prediction period in days (1 <= predictions <= 30 ): ")
-    #prompt the user for a prediction period
-    #ensure the input is a valid integer between 1 and 30
+    # prompt the user for a prediction period
+    # ensure the input is a valid integer between 1 and 30
     while True:
         try:
             prediction_period = int(input().strip())
@@ -75,8 +81,9 @@ def get_prediction_period() -> int:
         except ValueError:
             print("Invalid input. Please enter a number between 1 and 30.")
             continue
-        
-def prepare_data(data_input: DataInput) -> tuple[np.ndarray, np.ndarray]: 
+
+
+def prepare_data(data_input: DataInput, scaler_X: MinMaxScaler) -> tuple[np.ndarray, np.ndarray]:
     """
     Prepares the data for training the neural network.
     Args:
@@ -84,54 +91,82 @@ def prepare_data(data_input: DataInput) -> tuple[np.ndarray, np.ndarray]:
     Returns:
         tuple: A tuple containing the input features (X) and output labels (Y) as numpy arrays.
     """
-    
-    data = data_input.get_data() 
-    
+
+    data = data_input.get_data()
     features = data.columns.tolist()
-    
-    scaler_X = MinMaxScaler(feature_range=(0, 1))
     scaled_data = data.copy()
     scaled_data[features] = scaler_X.fit_transform(data[features])
-   
-    
+
     X, Y = [], []
-    
 
     # Create input and output arrays for the neural network
     for i in range(len(scaled_data) - data_input.lookback_period - data_input.prediction_period + 1):
-        X.append(scaled_data[features].iloc[i:i + data_input.lookback_period].values)
-        Y.append(scaled_data['Close'] \
-                 .iloc[i + data_input.lookback_period : i + data_input.lookback_period + data_input.prediction_period].values)
+        X.append(scaled_data[features].iloc[i:i +
+                 data_input.lookback_period].values)
+        Y.append(scaled_data['Close']
+                 .iloc[i + data_input.lookback_period: i + data_input.lookback_period + data_input.prediction_period].values)
     X, Y = np.array(X), np.array(Y)
-  
-    print(f"X shape: {X.shape}")
-    print(f"Y shape: {Y.shape}")
-    return X, Y
-    
-    
-    
-    
-    
 
-        
-def train_model(data_input: DataInput):  
-    
-    
-    X_numpy, y_numpy = prepare_data(data_input)
-    X = torch.from_numpy(X_numpy)
-    y = torch.from_numpy(y_numpy)
-    print(f"X shape: {X.shape} Y shape: {y.shape}")
-    
-    
+   # print(f"X shape: {X.shape}")
+   # print(f"Y shape: {Y.shape}")
+    return X, Y
+
+
+def train_model(data_input: DataInput):
+
+    scaler_X = MinMaxScaler(feature_range=(0, 1))
+    X_numpy, y_numpy = prepare_data(data_input, scaler_X)
+    X = torch.from_numpy(X_numpy).float()
+    y = torch.from_numpy(y_numpy).float()
+    model_0 = StockPredictionModel(data_input.prediction_period)
+    # print(model_0.state_dict())
+    # print(f"X size : {len(X)} Y size: {len(y)}")
+
+    # train test split of 75%
+    train_split = int(len(X) * 0.8)
+    X_train, y_train = X[:train_split], y[:train_split]
+    X_test, y_test = X[train_split:], y[train_split:]
+
+    loss_fn = nn.MSELoss()
+    optimiser = torch.optim.Adam(model_0.parameters(), lr=0.01)
+
+    torch.manual_seed(22)
+    epochs = 200
+
+    training_losses = []
+    test_losses = []
+    epoch_count = []
+
+    for epoch in range(epochs):
+        # Train
+        model_0.train()
+        y_pred = model_0(X_train)
+        loss = loss_fn(y_pred, y_train)
+        optimiser.zero_grad()
+        loss.backward()
+        optimiser.step()
+
+        # Test
+        with torch.inference_mode():
+            test_pred = model_0(X_test)
+            test_loss = loss_fn(test_pred, y_test.type(torch.float))
+            if epoch % 10 == 0:
+                epoch_count.append(epoch)
+                training_losses.append(loss.detach().numpy())
+                test_losses.append(test_loss.detach().numpy())
+                print(
+                    f"Epoch: {epoch} | MAE Train Loss: {loss} | MAE Test Loss: {test_loss} ")
+            
+
 
 def main():
-    
+
     data = get_data()
     prediction_period = get_prediction_period()
     input_data = DataInput(data, prediction_period)
-    
+
     train_model(input_data)
-    
+
 
 if __name__ == "__main__":
     main()
