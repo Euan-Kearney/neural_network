@@ -83,7 +83,8 @@ def get_prediction_period() -> int:
             continue
 
 
-def prepare_data(data_input: DataInput, scaler_X: MinMaxScaler) -> tuple[np.ndarray, np.ndarray]:
+def prepare_data(
+        data_input: DataInput, scaler_X: MinMaxScaler, scaler_y: MinMaxScaler) -> tuple[np.ndarray, np.ndarray]:
     """
     Prepares the data for training the neural network.
     Args:
@@ -94,31 +95,39 @@ def prepare_data(data_input: DataInput, scaler_X: MinMaxScaler) -> tuple[np.ndar
 
     data = data_input.get_data()
     features = data.columns.tolist()
-    scaled_data = data.copy()
-    scaled_data[features] = scaler_X.fit_transform(data[features])
+    # Scale input data
+    scaled_input = data.copy()
+    scaled_input[features] = scaler_X.fit_transform(data[features])
+    # Scale output data
+    scaled_output = data['Close'].copy()
+    scaled_output = scaler_y.fit_transform(data['Close'].values.reshape(-1, 1))
 
-    X, Y = [], []
-
+    X, Y, final_window = [], [], []
     # Create input and output arrays for the neural network
-    for i in range(len(scaled_data) - data_input.lookback_period - data_input.prediction_period + 1):
-        X.append(scaled_data[features].iloc[i:i +
+    for i in range(len(scaled_input) - data_input.lookback_period - data_input.prediction_period + 1):
+        X.append(scaled_input[features].iloc[i:i +
                  data_input.lookback_period].values)
-        Y.append(scaled_data['Close']
-                 .iloc[i + data_input.lookback_period: i + data_input.lookback_period + data_input.prediction_period].values)
-    X, Y = np.array(X), np.array(Y)
-
+        # Flatten converts to appropriate shape for pytorch
+        Y.append(scaled_output[i + data_input.lookback_period: i + data_input.lookback_period + data_input.prediction_period].flatten())
+    X = np.array(X)
+    Y = np.array(Y)
+    final_window = scaled_input[features].iloc[-data_input.lookback_period:].values
    # print(f"X shape: {X.shape}")
    # print(f"Y shape: {Y.shape}")
-    return X, Y
+    return X, Y, final_window
 
 
 def train_model(data_input: DataInput):
 
     scaler_X = MinMaxScaler(feature_range=(0, 1))
-    X_numpy, y_numpy = prepare_data(data_input, scaler_X)
+    scaler_y = MinMaxScaler(feature_range=(0, 1))
+    X_numpy, y_numpy, final_window_numpy = prepare_data(
+        data_input, scaler_X, scaler_y)
     X = torch.from_numpy(X_numpy).float()
     y = torch.from_numpy(y_numpy).float()
-    model_0 = StockPredictionModel(data_input.prediction_period)
+    final_window = torch.from_numpy(final_window_numpy).float().unsqueeze(0)
+    test_model = StockPredictionModel(data_input.prediction_period)
+    stock_prediction_model = StockPredictionModel(data_input.prediction_period)
     # print(model_0.state_dict())
     # print(f"X size : {len(X)} Y size: {len(y)}")
 
@@ -128,35 +137,64 @@ def train_model(data_input: DataInput):
     X_test, y_test = X[train_split:], y[train_split:]
 
     loss_fn = nn.MSELoss()
-    optimiser = torch.optim.Adam(model_0.parameters(), lr=0.01)
+    test_model_optimiser = torch.optim.Adam(test_model.parameters(), lr=0.01)
+    prediction_model_optimiser = torch.optim.Adam(
+        stock_prediction_model.parameters(), lr=0.01)
 
     torch.manual_seed(22)
     epochs = 200
 
-    training_losses = []
-    test_losses = []
-    epoch_count = []
+    test_model_training_losses = []
+    test_model_testing_losses = []
+    test_model_epoch_count = []
 
+    print("Training and testing with current data:")
+    # Training and testing with present data
     for epoch in range(epochs):
         # Train
-        model_0.train()
-        y_pred = model_0(X_train)
+        test_model.train()
+        y_pred = test_model(X_train)
         loss = loss_fn(y_pred, y_train)
-        optimiser.zero_grad()
+        test_model_optimiser.zero_grad()
         loss.backward()
-        optimiser.step()
+        test_model_optimiser.step()
 
         # Test
         with torch.inference_mode():
-            test_pred = model_0(X_test)
+            test_pred = test_model(X_test)
             test_loss = loss_fn(test_pred, y_test.type(torch.float))
             if epoch % 10 == 0:
-                epoch_count.append(epoch)
-                training_losses.append(loss.detach().numpy())
-                test_losses.append(test_loss.detach().numpy())
+                test_model_epoch_count.append(epoch)
+                test_model_training_losses.append(loss.detach().numpy())
+                test_model_testing_losses.append(test_loss.detach().numpy())
                 print(
                     f"Epoch: {epoch} | MAE Train Loss: {loss} | MAE Test Loss: {test_loss} ")
-            
+
+    torch.manual_seed(22)
+    prediction_model_losses = []
+    prediction_model_epoch_count = []
+
+    # Training with all data for future predictions
+    print("Training with all available")
+    for epoch in range(epochs):
+        # Train
+        stock_prediction_model.train()
+        y_pred = stock_prediction_model(X)
+        loss = loss_fn(y_pred, y)
+        prediction_model_optimiser.zero_grad()
+        loss.backward()
+        prediction_model_optimiser.step()
+        if epoch % 10 == 0:
+            prediction_model_epoch_count.append(epoch)
+            prediction_model_losses.append(loss.detach().numpy())
+            print(f"Epoch: {epoch} | Train Loss: {loss}")
+
+    stock_prediction_model.eval()
+    with torch.inference_mode():
+        raw_prediction = stock_prediction_model(final_window)
+    scaled_prediction = raw_prediction.detach().numpy().squeeze().reshape(-1, 1)
+    prediction = scaler_y.inverse_transform(scaled_prediction)
+    print(prediction)
 
 
 def main():
