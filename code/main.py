@@ -9,6 +9,12 @@ from sklearn.preprocessing import MinMaxScaler
 
 
 def plot_predictions(data_input: DataInput, prediction):
+    """
+    Plots projected stock closing prices
+    Args:
+        data_input (DataInput): An instance of DataInput containing the data and lookback period.
+        prediction: the numpy array of the projected stock prices, based on the model output
+    """
 
     data_numpy = data_input.close.to_numpy()
     lookback = data_numpy[data_numpy.size - data_input.lookback_period:]
@@ -18,6 +24,7 @@ def plot_predictions(data_input: DataInput, prediction):
     plt.plot(x_values[:data_input.lookback_period], projection[:data_input.lookback_period], color='royalblue')
     plt.plot(x_values[data_input.lookback_period - 1:], projection[data_input.lookback_period - 1:], color='crimson')
     plt.title('Stock projection')
+    plt.xlabel('Price (USD)')
     plt.savefig(f'{data_input.data.ticker} Projection')
     plt.show()
 
