@@ -86,11 +86,10 @@ def calculate_rsi(data: pd.Series, period: int = 14) -> pd.Series:
     delta = data.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
-    # Wilder's smoothing (EMA with alpha = 1/period)
     avg_gain = gain.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
     avg_loss = loss.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
     
-    rs = avg_gain / (avg_loss +  1e-10)  # Adding a small value to avoid division by zero
+    rs = avg_gain / (avg_loss +  1e-10) 
     rsi = 100 - (100 / (1 + rs))
      
     return rsi

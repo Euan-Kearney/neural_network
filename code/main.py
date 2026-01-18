@@ -1,10 +1,25 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import torch
 from torch import nn
 from info import DataInput
 from sklearn.preprocessing import MinMaxScaler
+
+
+def plot_predictions(data_input: DataInput, prediction):
+
+    data_numpy = data_input.close.to_numpy()
+    lookback = data_numpy[data_numpy.size - data_input.lookback_period:]
+    projection = np.append(lookback, prediction.reshape(-1))
+    x_values = np.arange(len(projection))
+    
+    plt.plot(x_values[:data_input.lookback_period], projection[:data_input.lookback_period], color='royalblue')
+    plt.plot(x_values[data_input.lookback_period - 1:], projection[data_input.lookback_period - 1:], color='crimson')
+    plt.title('Stock projection')
+    plt.savefig(f'{data_input.data.ticker} Projection')
+    plt.show()
 
 
 class StockPredictionModel(nn.Module):
@@ -16,34 +31,33 @@ class StockPredictionModel(nn.Module):
                             hidden_size=self.hidden_size,
                             num_layers=self.num_layers,
                             batch_first=True,
+                            bidirectional=True,
                             dropout=0.25
                             )
 
-        self.fc = nn.Linear(self.hidden_size, prediction_period)
+        self.fc = nn.Linear(self.hidden_size*2, prediction_period)
 
     def forward(self, x):
 
         # initialise long and short term memory to 0
-        h0 = torch.zeros(self.num_layers, x.size(
+        h0 = torch.zeros(self.num_layers*2, x.size(
             0), self.hidden_size).to(x.device)
-        c0 = torch.zeros(self.num_layers, x.size(
+        c0 = torch.zeros(self.num_layers*2, x.size(
             0), self.hidden_size).to(x.device)
 
         # forward pass
         out, (hn, cn) = self.lstm(x, (h0, c0))
 
         # takes final index of the timestep
-        out = out[:, -1, :]
-
-        out = self.fc(out)
-
+        out = self.fc(out[:, -1, :])
         return out
 
 
 def get_data() -> yf.Ticker:
     """
-    Retrieves data for a Wall Street ticker symbol using the yfinance library
-    Returns a yf.Ticker object containing the data for the specified ticker symbol.
+    Retrieves the data for a Wall Street stock ticker, based on user input
+    Returns:
+        yf.Ticker: The RSI values.
     """
 
     # prompt the user for a Wall Street ticker symbol
@@ -65,8 +79,9 @@ def get_data() -> yf.Ticker:
 
 def get_prediction_period() -> int:
     """
-    Prompts the user for a prediction period in days.
-    Returns the prediction period as an integer.
+    Prompts user for how many days the stock prices should be predicted
+    Returns:
+        int: prediction period (days)
     """
     print("Enter the prediction period in days (1 <= predictions <= 30 ): ")
     # prompt the user for a prediction period
@@ -108,17 +123,20 @@ def prepare_data(
         X.append(scaled_input[features].iloc[i:i +
                  data_input.lookback_period].values)
         # Flatten converts to appropriate shape for pytorch
-        Y.append(scaled_output[i + data_input.lookback_period: i + data_input.lookback_period + data_input.prediction_period].flatten())
+        Y.append(scaled_output[i + data_input.lookback_period: i +
+                 data_input.lookback_period + data_input.prediction_period].flatten())
     X = np.array(X)
     Y = np.array(Y)
     final_window = scaled_input[features].iloc[-data_input.lookback_period:].values
-   # print(f"X shape: {X.shape}")
-   # print(f"Y shape: {Y.shape}")
     return X, Y, final_window
 
 
-def train_model(data_input: DataInput):
-
+def run_model(data_input: DataInput):
+    """
+    Trains, tests and runs the stock prediction network
+    Args:
+        data_input (DataInput): An instance of DataInput containing the data and lookback period.
+    """
     scaler_X = MinMaxScaler(feature_range=(0, 1))
     scaler_y = MinMaxScaler(feature_range=(0, 1))
     X_numpy, y_numpy, final_window_numpy = prepare_data(
@@ -126,11 +144,10 @@ def train_model(data_input: DataInput):
     X = torch.from_numpy(X_numpy).float()
     y = torch.from_numpy(y_numpy).float()
     final_window = torch.from_numpy(final_window_numpy).float().unsqueeze(0)
+    torch.manual_seed(42)
     test_model = StockPredictionModel(data_input.prediction_period)
+    torch.manual_seed(42)
     stock_prediction_model = StockPredictionModel(data_input.prediction_period)
-    # print(model_0.state_dict())
-    # print(f"X size : {len(X)} Y size: {len(y)}")
-
     # train test split of 75%
     train_split = int(len(X) * 0.8)
     X_train, y_train = X[:train_split], y[:train_split]
@@ -194,16 +211,16 @@ def train_model(data_input: DataInput):
         raw_prediction = stock_prediction_model(final_window)
     scaled_prediction = raw_prediction.detach().numpy().squeeze().reshape(-1, 1)
     prediction = scaler_y.inverse_transform(scaled_prediction)
-    print(prediction)
+    print(f"prediction shape: {prediction.shape}")
+    print(f"Predicted values: \n{prediction}")
+    plot_predictions(data_input, prediction)
 
 
 def main():
-
     data = get_data()
     prediction_period = get_prediction_period()
     input_data = DataInput(data, prediction_period)
-
-    train_model(input_data)
+    run_model(input_data)
 
 
 if __name__ == "__main__":
